@@ -169,6 +169,24 @@ def build_loader(
             transform=_celeba_transform(DATASET_CFG['celeba'].image_size),
         )
 
+    elif dataset == 'chairs':
+        root = os.path.join(data_dir, 'chairs', 'images')
+        if not os.path.isdir(os.path.join(root, '0')):
+            raise FileNotFoundError(
+                f"\nChairs data not found. Expected:\n  {root}/0/*.png\n"
+                f"Please put 64×64 grayscale chair images under that path."
+            )
+        ds = datasets.ImageFolder(
+            root=root,
+            transform=transforms.Compose([
+                transforms.Grayscale(num_output_channels=1),
+                transforms.Resize(64),
+                transforms.CenterCrop(64),
+                transforms.ToTensor(),
+            ])
+        )
+
+
     else:
         raise ValueError(f"Unknown dataset '{dataset}'. "
                          f"Choose from: {list(DATASET_CFG.keys())}")
