@@ -48,6 +48,8 @@ def parse_args():
                    help='path to .pt checkpoint to resume from')
     p.add_argument('--start_epoch',type=int, default=None,
                    help='override start epoch when resuming (default: checkpoint epoch + 1)')
+    p.add_argument('--gumbel_temp', type=float, default=1.0,
+               help='Gumbel-Softmax temperature (improvement: use 0.5)')
     return p.parse_args()
 
 
@@ -83,6 +85,7 @@ def main():
         lambda_disc     = args.lambda_disc,
         lambda_cont     = args.lambda_cont,
         infonce_temp    = args.infonce_temp,
+        gumbel_temp     = args.gumbel_temp,
     )
 
     trainer = InfoGANTrainer(cfg)

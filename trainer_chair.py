@@ -61,6 +61,7 @@ class TrainerConfig:
     checkpoint_dir: str = 'checkpoints'
     save_every: int = 10
     vis_every: int = 1
+    gumbel_temp: float = 1.0 
 
     def __post_init__(self):
         assert self.mode in VALID_MODES, \
@@ -289,7 +290,7 @@ class InfoGANTrainer:
         B = real_imgs.size(0)
         real_imgs = real_imgs.to(device)
 
-        z_noise, c_cat, c_cont = self.sample_latent(B, device)
+        z_noise, c_cat, c_cont = self.sample_latent(B, device, temperature=cfg.gumbel_temp)
         z = self.concat_latent(z_noise, c_cat, c_cont)
 
         fake_imgs = self.G(z)

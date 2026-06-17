@@ -13,6 +13,7 @@ Generator output: 64×64 grayscale image
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # ---------------------------------------------------------------------------
 # Hyper-parameters
@@ -214,21 +215,22 @@ def parse_q_output(q_out: torch.Tensor):
     return cat_prob, cont_mean, cont_std
 
 
-def sample_latent(batch_size: int, device: torch.device):
+def sample_latent(batch_size: int, device: torch.device, temperature: float = 1.0):
     """
     Sample the full latent vector and return its components separately.
-      noise z : Uniform(-1, 1)  shape (B, 128)
-      c1,c3,c4: Categorical(20) returned as one-hot blocks in (B, 60)
-      c5      : Uniform(-1, 1)  shape (B, 1)
+      noise z : Uniform(-1, 1)  shape (B, NOISE_DIM)
+      c1,c3,c4: Categorical(20) returned as one-hot blocks in (B, sum(CAT_DIMS))
+      c5      : Uniform(-1, 1)  shape (B, CONT_DIM)
     """
     z_noise = torch.FloatTensor(batch_size, NOISE_DIM).uniform_(-1, 1).to(device)
 
-    c_cat = torch.zeros(batch_size, CAT_DIM, device=device)
-    offset = 0
+    # 为每个类别变量生成 one‑hot 块（使用 Gumbel‑Softmax）
+    cat_blocks = []
     for dim in CAT_DIMS:
-        cat_idx = torch.randint(0, dim, (batch_size,), device=device)
-        c_cat.scatter_(1, (cat_idx + offset).unsqueeze(1), 1.0)
-        offset += dim
+        logits = torch.zeros(batch_size, dim, device=device)   # 均匀分布
+        one_hot = F.gumbel_softmax(logits, tau=temperature, hard=True)
+        cat_blocks.append(one_hot)
+    c_cat = torch.cat(cat_blocks, dim=1)   # shape (B, sum(CAT_DIMS))
 
     c_cont = torch.FloatTensor(batch_size, CONT_DIM).uniform_(-1, 1).to(device)
 
