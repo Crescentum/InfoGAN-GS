@@ -224,17 +224,29 @@ def sample_latent(batch_size: int, device: torch.device, temperature: float = 1.
     """
     z_noise = torch.FloatTensor(batch_size, NOISE_DIM).uniform_(-1, 1).to(device)
 
-    # 为每个类别变量生成 one‑hot 块（使用 Gumbel‑Softmax）
-    cat_blocks = []
-    for dim in CAT_DIMS:
-        logits = torch.zeros(batch_size, dim, device=device)   # 均匀分布
-        one_hot = F.gumbel_softmax(logits, tau=temperature, hard=True)
-        cat_blocks.append(one_hot)
-    c_cat = torch.cat(cat_blocks, dim=1)   # shape (B, sum(CAT_DIMS))
+    if temperature < 0.0:
+        c_cat = torch.zeros(batch_size, CAT_DIM, device=device)
+        offset = 0
+        for dim in CAT_DIMS:
+            cat_idx = torch.randint(0, dim, (batch_size,), device=device)
+            c_cat.scatter_(1, (cat_idx + offset).unsqueeze(1), 1.0)
+            offset += dim
 
-    c_cont = torch.FloatTensor(batch_size, CONT_DIM).uniform_(-1, 1).to(device)
+        c_cont = torch.FloatTensor(batch_size, CONT_DIM).uniform_(-1, 1).to(device)
 
-    return z_noise, c_cat, c_cont
+        return z_noise, c_cat, c_cont
+    
+    else:
+        cat_blocks = []
+        for dim in CAT_DIMS:
+            logits = torch.zeros(batch_size, dim, device=device)   # 均匀分布
+            one_hot = F.gumbel_softmax(logits, tau=temperature, hard=True)
+            cat_blocks.append(one_hot)
+        c_cat = torch.cat(cat_blocks, dim=1)   # shape (B, sum(CAT_DIMS))
+
+        c_cont = torch.FloatTensor(batch_size, CONT_DIM).uniform_(-1, 1).to(device)
+
+        return z_noise, c_cat, c_cont
 
 
 def concat_latent(z_noise: torch.Tensor,
