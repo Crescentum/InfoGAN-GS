@@ -7,7 +7,6 @@ src_dir = "./data/raw_chairs"
 dst_dir = "./data/chairs/images/0"  
 os.makedirs(dst_dir, exist_ok=True)
 
-# 递归查找所有 png/jpg（包括子文件夹）
 patterns = [
     os.path.join(src_dir, "**/*.png"),
     os.path.join(src_dir, "**/*.jpg"),
@@ -60,7 +59,6 @@ for src_path in tqdm(files):
         fail_log.append(f"UnknownError: {src_path} - {str(e)}")
         continue
 
-# 打印统计信息
 print(f"\n完成！")
 print(f"成功: {success_count} 张图片")
 print(f"失败: {fail_count} 张图片")

@@ -16,9 +16,7 @@ from datasets import DATASET_CFG, denorm, build_loader
 TINY = 1e-8
 
 
-# ---------------------------------------------------------------------------
-# Dynamic model import (same convention as trainer.py)
-# ---------------------------------------------------------------------------
+
 
 def _load_model_module(dataset: str):
     module_name = f"model_{dataset}"
@@ -31,9 +29,7 @@ def _load_model_module(dataset: str):
         )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+
 
 def _to_numpy_img(tensor: torch.Tensor) -> np.ndarray:
     img = tensor.cpu().clamp(0, 1).numpy()
@@ -67,20 +63,6 @@ def _cat_code_width(m) -> int:
     return _num_cat_codes(m) * m.CAT_DIM
 
 
-# ---------------------------------------------------------------------------
-# Core grid builder — exact layout matching paper Figure 2
-#
-# Layout convention (from paper caption):
-#   - Each COLUMN = one fixed value of the varying code
-#   - Each ROW    = different fixed z_noise / other codes
-#
-# (a) c1 categorical:
-#     10 columns = 10 categories, 5 rows = 5 different z_noise samples
-#     → 5×10 = 50 images
-#
-# (c)(d) continuous sweep:
-#     10 columns = sweep from -2 to +2, 5 rows = 5 different z_noise samples
-# ---------------------------------------------------------------------------
 
 @torch.no_grad()
 def _make_c1_grid(G, m, device, pixel_range, n_rows=5, n_cols=10):
@@ -93,13 +75,9 @@ def _make_c1_grid(G, m, device, pixel_range, n_rows=5, n_cols=10):
     CONT_DIM  = m.CONT_DIM
     N_CATS    = _num_cat_codes(m)
 
-    # one z_noise vector per row, repeated across all 10 columns
     row_noises = torch.FloatTensor(n_rows, NOISE_DIM).uniform_(-1, 1).to(device)
-    z_noise    = row_noises.repeat_interleave(n_cols, dim=0)  # (n_rows*n_cols, 62)
+    z_noise    = row_noises.repeat_interleave(n_cols, dim=0) 
 
-    # c1: column j → category j
-    # Layout: indices 0..n_cols-1 = row 0, n_cols..2*n_cols-1 = row 1, etc.
-    # (because repeat_interleave repeats each row n_cols times consecutively)
     c_cat = torch.zeros(n_rows * n_cols, _cat_code_width(m), device=device)
     for row in range(n_rows):
         for col in range(n_cols):
@@ -117,10 +95,6 @@ def _make_c1_grid(G, m, device, pixel_range, n_rows=5, n_cols=10):
 @torch.no_grad()
 def _make_cont_grid(G, m, device, pixel_range, cont_idx=0,
                     cont_range=2.0, n_rows=5, n_cols=10):
-    """
-    (c)/(d): Fix z_noise per row and c1 (class 0), sweep one continuous code.
-    Each column = one value of c_i swept from -cont_range to +cont_range.
-    """
     NOISE_DIM = m.NOISE_DIM
     CAT_DIM   = m.CAT_DIM
     CONT_DIM  = m.CONT_DIM
@@ -145,32 +119,19 @@ def _make_cont_grid(G, m, device, pixel_range, cont_idx=0,
     return denorm(imgs, pixel_range)
 
 
-# ---------------------------------------------------------------------------
-# Figure 2 — main function
-# ---------------------------------------------------------------------------
 
 @torch.no_grad()
 def plot_figure2(
-    G_infogan,              # trained InfoGAN generator
-    m,                      # model module (model_mnist etc.)
+    G_infogan,             
+    m,                     
     device      : torch.device,
     pixel_range : str  = '01',
-    G_gan       = None,     # optional: GAN baseline generator (for subplot b)
+    G_gan       = None,     
     cont_range  : float = 2.0,
     n_rows      : int   = 5,
     n_cols      : int   = 10,
     save_path   : str   = 'results/figure2.png',
 ):
-    """
-    Reproduce Figure 2 of the InfoGAN paper.
-
-      (a) Varying c1 on InfoGAN  — columns = digit categories
-      (b) Varying c1 on GAN      — no structure (requires G_gan)
-      (c) Varying c2 on InfoGAN  — rotation
-      (d) Varying c3 on InfoGAN  — width
-
-    If G_gan is None, subplot (b) is skipped and only (a)(c)(d) are saved.
-    """
     _ensure_dir(save_path)
     G_infogan.eval()
 
@@ -182,18 +143,16 @@ def plot_figure2(
     if n_plots == 1:
         axes = [axes]
 
-    # (a) InfoGAN c1 traversal
     imgs_a = _make_c1_grid(G_infogan, m, device, pixel_range, n_rows, n_cols)
     _render_grid(axes[0], imgs_a, n_cols,
                  '(a) Varying $c_1$ on InfoGAN')
 
     if has_baseline:
-        # (b) GAN baseline c1 traversal — should look random
         G_gan.eval()
         imgs_b = _make_c1_grid(G_gan, m, device, pixel_range, n_rows, n_cols)
         _render_grid(axes[1], imgs_b, n_cols,
                      '(b) Varying $c_1$ on GAN\n(No clear meaning)')
-        c_idx = 2   # (c) and (d) go to axes[2] and axes[3]
+        c_idx = 2   
     else:
         c_idx = 1
 
@@ -205,7 +164,6 @@ def plot_figure2(
         print(f"  Figure 2 saved 鈫?{save_path}")
         return
 
-    # (c) c2 sweep — rotation
     imgs_c = _make_cont_grid(G_infogan, m, device, pixel_range,
                               cont_idx=0, cont_range=cont_range,
                               n_rows=n_rows, n_cols=n_cols)
@@ -213,7 +171,6 @@ def plot_figure2(
                  f'({"c" if has_baseline else "b"}) Varying $c_2$ '
                  f'∈ [−{cont_range}, {cont_range}]\n(Rotation)')
 
-    # (d) c3 sweep — width
     imgs_d = _make_cont_grid(G_infogan, m, device, pixel_range,
                               cont_idx=1, cont_range=cont_range,
                               n_rows=n_rows, n_cols=n_cols)
@@ -228,9 +185,6 @@ def plot_figure2(
     print(f"  Figure 2 saved → {save_path}")
 
 
-# ---------------------------------------------------------------------------
-# Figure 1 — L_I convergence curve
-# ---------------------------------------------------------------------------
 
 def plot_mi_curve(
     li_infogan  : list,
@@ -262,9 +216,6 @@ def plot_mi_curve(
     print(f"  Figure 1 saved → {save_path}")
 
 
-# ---------------------------------------------------------------------------
-# Classification error  (Section 7.2)
-# ---------------------------------------------------------------------------
 
 @torch.no_grad()
 def compute_classification_error(
@@ -327,10 +278,6 @@ def compute_classification_error(
     return error
 
 
-# ---------------------------------------------------------------------------
-# Training loss curves (diagnostic)
-# ---------------------------------------------------------------------------
-
 def plot_loss_curves(
     history   : dict,
     mode      : str = 'vanilla',
@@ -359,10 +306,6 @@ def plot_loss_curves(
     plt.close()
     print(f"  Loss curves saved → {save_path}")
 
-
-# ---------------------------------------------------------------------------
-# Mode comparison grid
-# ---------------------------------------------------------------------------
 
 @torch.no_grad()
 def plot_mode_comparison(
@@ -402,16 +345,12 @@ def plot_mode_comparison(
     print(f"  Mode comparison saved → {save_path}")
 
 
-# ---------------------------------------------------------------------------
-# CLI — load checkpoint(s) and generate all figures
-# ---------------------------------------------------------------------------
-
 def run_all(
     ckpt_path     : str,
     dataset       : str = 'celeba',
     results_dir   : str = 'results/celeba_stage4_single_code_infogan_from_ckpt',
     device_str    : str = 'cuda',
-    ckpt_gan_path : str = None,   # optional GAN baseline for subplot (b)
+    ckpt_gan_path : str = None,   
 ):
     device = torch.device(device_str if torch.cuda.is_available() else 'cpu')
     meta   = DATASET_CFG[dataset]
@@ -419,7 +358,6 @@ def run_all(
 
     os.makedirs(results_dir, exist_ok=True)
 
-    # load InfoGAN checkpoint
     G  = m.Generator().to(device)
     DQ = m.DiscriminatorQ().to(device)
     ckpt = torch.load(ckpt_path, map_location=device)
@@ -428,7 +366,6 @@ def run_all(
     mode = ckpt.get('mode', 'vanilla')
     print(f"Loaded: epoch={ckpt['epoch']}  mode={mode}  dataset={dataset}")
 
-    # optionally load GAN baseline
     G_gan = None
     if ckpt_gan_path:
         G_gan = m.Generator().to(device)
@@ -436,7 +373,6 @@ def run_all(
         G_gan.load_state_dict(ckpt_gan['G_state'])
         print(f"Loaded GAN baseline: epoch={ckpt_gan['epoch']}")
 
-    # Figure 2
     plot_figure2(
         G, m, device,
         pixel_range = meta.pixel_range,
@@ -444,7 +380,6 @@ def run_all(
         save_path   = f'{results_dir}/{dataset}_{mode}_figure2.png',
     )
 
-    # Classification error (MNIST only)
     if dataset == 'mnist':
         compute_classification_error(G, DQ, device, m)
 

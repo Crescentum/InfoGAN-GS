@@ -15,9 +15,6 @@ from datasets import build_loader
 TINY = 1e-8
 
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
 
 @dataclass
 class TrainerConfig:
@@ -25,15 +22,15 @@ class TrainerConfig:
 
     batch_size:        int   = 128
     max_epochs:        int   = 50
-    updates_per_epoch: int   = 0   # 0 = full dataset
+    updates_per_epoch: int   = 0  
 
-    lr_d:       float = 2e-4   # paper Appendix C.1
-    lr_g:       float = 1e-3   # paper Appendix C.1
+    lr_d:       float = 2e-4  
+    lr_g:       float = 1e-3   
     adam_beta1: float = 0.5
     adam_beta2: float = 0.999
 
-    lambda_disc: float = 1.0   # λ for discrete MI loss   (paper λ=1)
-    lambda_cont: float = 0.1   # λ for continuous MI loss (paper λ=0.1)
+    lambda_disc: float = 1.0   
+    lambda_cont: float = 0.1   
 
     log_dir:        str = 'logs'
     checkpoint_dir: str = 'checkpoints'
@@ -41,9 +38,6 @@ class TrainerConfig:
     vis_every:      int = 1
 
 
-# ---------------------------------------------------------------------------
-# Loss functions
-# ---------------------------------------------------------------------------
 
 def bce_d_loss(real_d, fake_d):
     """
@@ -83,9 +77,6 @@ def mi_cont_loss(c_cont, cont_mean, cont_std):
     return nll.mean()
 
 
-# ---------------------------------------------------------------------------
-# Trainer
-# ---------------------------------------------------------------------------
 
 class InfoGANTrainer:
 
@@ -117,9 +108,6 @@ class InfoGANTrainer:
         self.fixed_noise, self.fixed_c_cat, self.fixed_c_cont = \
             self._make_fixed_latents()
 
-    # -----------------------------------------------------------------------
-    # Fixed latents for TensorBoard
-    # -----------------------------------------------------------------------
 
     def _make_fixed_latents(self):
         device = self.device
@@ -131,9 +119,6 @@ class InfoGANTrainer:
         c_cont = torch.zeros(100, m.CONT_DIM, device=device)
         return noise, c_cat, c_cont
 
-    # -----------------------------------------------------------------------
-    # Single training step
-    # -----------------------------------------------------------------------
 
     def _step(self, real_imgs):
         cfg    = self.cfg
@@ -145,7 +130,6 @@ class InfoGANTrainer:
         z         = m.concat_latent(z_noise, c_cat, c_cont)
         fake_imgs = self.G(z)
 
-        # ── D / Q update ────────────────────────────────────────────────────
         self.opt_DQ.zero_grad()
         real_d, _     = self.DQ(real_imgs)
         fake_d, q_out = self.DQ(fake_imgs.detach())
@@ -159,7 +143,6 @@ class InfoGANTrainer:
         (d_loss + mi_total).backward()
         self.opt_DQ.step()
 
-        # ── G update ────────────────────────────────────────────────────────
         self.opt_G.zero_grad()
         fake_imgs_g       = self.G(z)
         fake_d_g, q_out_g = self.DQ(fake_imgs_g)
@@ -184,9 +167,6 @@ class InfoGANTrainer:
             'LI_disc': li,
         }
 
-    # -----------------------------------------------------------------------
-    # TensorBoard visualisation
-    # -----------------------------------------------------------------------
 
     @torch.no_grad()
     def _visualise(self, epoch):
@@ -213,9 +193,6 @@ class InfoGANTrainer:
 
         self.G.train()
 
-    # -----------------------------------------------------------------------
-    # Training loop
-    # -----------------------------------------------------------------------
 
     def train(self):
         cfg = self.cfg
@@ -259,9 +236,6 @@ class InfoGANTrainer:
         self.writer.close()
         print('Training complete.')
 
-    # -----------------------------------------------------------------------
-    # Checkpoint helpers
-    # -----------------------------------------------------------------------
 
     def _save_checkpoint(self, epoch, final=False):
         tag  = 'final' if final else f'epoch{epoch:03d}'

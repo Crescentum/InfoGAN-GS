@@ -14,7 +14,7 @@ from tqdm import tqdm
 from datasets import build_loader
 
 TINY = 1e-8
-VALID_MODES = ('vanilla', 'wgan_gp', 'infonce', 'wgan_gp+infonce')
+VALID_MODES = ('vanilla')
 
 
 def _load_model_module(dataset: str):
@@ -70,9 +70,6 @@ class TrainerConfig:
         return 'infonce' in self.mode
 
 
-# ---------------------------------------------------------------------------
-# Loss functions
-# ---------------------------------------------------------------------------
 
 def bce_d_loss(real_d, fake_d):
     real_d = real_d.clamp(1e-6, 1 - 1e-6)
@@ -109,14 +106,12 @@ def mi_orig_discrete(c_cat, cat_prob, cat_dims=None):
     Supports multiple categorical codes via cat_dims.
     """
     if cat_dims is None or len(cat_dims) == 1:
-        # Single categorical code (backward compatible)
         if isinstance(cat_prob, list):
             cat_prob = cat_prob[0]
         targets = c_cat.argmax(dim=1)
         logits = torch.log(cat_prob + TINY)
         return F.cross_entropy(logits, targets)
 
-    # Multiple categorical codes
     loss = 0.0
     offset = 0
     probs = cat_prob if isinstance(cat_prob, list) else \
@@ -144,7 +139,6 @@ def mi_infonce_discrete(c_cat, feat, temperature=0.1, proj_feat=None, proj_cat=N
     feat_dim = feat.size(1)
     cat_dim = c_cat.size(1)
     
-    # 如果维度不匹配，使用投影
     if feat_dim != cat_dim:
         if proj_feat is None:
             proj_feat = nn.Linear(feat_dim, 256, bias=False).to(feat.device)
@@ -160,9 +154,6 @@ def mi_infonce_discrete(c_cat, feat, temperature=0.1, proj_feat=None, proj_cat=N
     return F.cross_entropy(logits, targets)
 
 
-# ---------------------------------------------------------------------------
-# Trainer
-# ---------------------------------------------------------------------------
 
 class InfoGANTrainer:
 
@@ -173,7 +164,6 @@ class InfoGANTrainer:
               f"mode={cfg.mode}  "
               f"(wgan_gp={cfg.use_wgan_gp}, infonce={cfg.use_infonce})")
 
-        # load model module
         m = _load_model_module(cfg.dataset)
         self.Generator = m.Generator
         self.DiscriminatorQ = m.DiscriminatorQ
@@ -183,12 +173,10 @@ class InfoGANTrainer:
         self.NOISE_DIM = m.NOISE_DIM
         self.CONT_DIM = m.CONT_DIM
 
-        # Support multiple categorical codes
         self.CAT_DIMS = getattr(m, 'CAT_DIMS', (getattr(m, 'CAT_DIM', 10),))
         self.N_CATS = getattr(m, 'N_CATS', 1)
         self.CAT_DIM = sum(self.CAT_DIMS)
 
-        # networks
         self.G = m.Generator().to(self.device)
         self.DQ = m.DiscriminatorQ().to(self.device)
 
@@ -197,7 +185,6 @@ class InfoGANTrainer:
                 nn.Linear(1024, 1)
             ).to(self.device)
 
-        # optimisers
         self.opt_G = torch.optim.Adam(
             self.G.parameters(),
             lr=cfg.lr_g, betas=(cfg.adam_beta1, cfg.adam_beta2),
@@ -207,38 +194,31 @@ class InfoGANTrainer:
             lr=cfg.lr_d, betas=(cfg.adam_beta1, cfg.adam_beta2),
         )
 
-        # data
         self.loader = build_loader(
             cfg.dataset, data_dir=cfg.data_dir, batch_size=cfg.batch_size
         )
 
-        # logging
         ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         run_name = f"{cfg.dataset}_{cfg.mode}_{ts}"
         self.writer = SummaryWriter(os.path.join(cfg.log_dir, run_name))
         os.makedirs(cfg.checkpoint_dir, exist_ok=True)
 
-        # fixed latents for visualisation
         self.fixed_noise, self.fixed_c_cat, self.fixed_c_cont = \
             self._make_fixed_latents()
 
         self.proj_feat = None
         self.proj_cat = None
         if cfg.use_infonce:
-            feat_dim = 1024  # shared_fc 输出维度
-            cat_dim = self.CAT_DIM  # 60 for chairs, 10 for mnist
+            feat_dim = 1024  
+            cat_dim = self.CAT_DIM  
             if feat_dim != cat_dim:
                 self.proj_feat = nn.Linear(feat_dim, 256, bias=False).to(self.device)
                 self.proj_cat = nn.Linear(cat_dim, 256, bias=False).to(self.device)
-                # 加入优化器
                 self.opt_DQ = torch.optim.Adam(
                     list(self.DQ.parameters()) + list(self.proj_feat.parameters()) + list(self.proj_cat.parameters()),
                     lr=cfg.lr_d, betas=(cfg.adam_beta1, cfg.adam_beta2),
                 )
 
-    # -----------------------------------------------------------------------
-    # Fixed latents
-    # -----------------------------------------------------------------------
 
     def _make_fixed_latents(self):
         B = 100
@@ -250,7 +230,6 @@ class InfoGANTrainer:
         noise = base.repeat_interleave(10, dim=0).to(device)
 
         c_cat = torch.zeros(B, self.CAT_DIM, device=device)
-        # Traverse the first categorical code, keep others fixed at class 0
         n_cols = min(self.CAT_DIMS[0], 10)
         for i in range(n_cols):
             c_cat[i * 10:(i + 1) * 10, i] = 1.0
@@ -258,9 +237,6 @@ class InfoGANTrainer:
         c_cont = torch.zeros(B, CONT_DIM, device=device)
         return noise, c_cat, c_cont
 
-    # -----------------------------------------------------------------------
-    # MI loss selector
-    # -----------------------------------------------------------------------
 
     def _mi_loss(self, c_cat, cat_prob, c_cont, cont_mean, cont_std, feat=None):
         if self.cfg.use_infonce:
@@ -274,9 +250,6 @@ class InfoGANTrainer:
         mi_cont = mi_orig_continuous(c_cont, cont_mean, cont_std)
         return mi_disc, mi_cont
 
-    # -----------------------------------------------------------------------
-    # Single training step
-    # -----------------------------------------------------------------------
 
     def _step(self, real_imgs):
         cfg = self.cfg
@@ -289,7 +262,6 @@ class InfoGANTrainer:
 
         fake_imgs = self.G(z)
 
-        # D / Q update
         self.opt_DQ.zero_grad()
         real_d, _ = self.DQ(real_imgs)
         fake_d, q_out = self.DQ(fake_imgs.detach())
@@ -321,7 +293,6 @@ class InfoGANTrainer:
                                                      cont_mean, cont_std)
         self.opt_DQ.step()
 
-        # G update
         self.opt_G.zero_grad()
         fake_imgs_g = self.G(z)
         fake_d_g, q_out_g = self.DQ(fake_imgs_g)
@@ -354,9 +325,6 @@ class InfoGANTrainer:
             'LI_disc': li_disc,
         }
 
-    # -----------------------------------------------------------------------
-    # Visualisation
-    # -----------------------------------------------------------------------
 
     @torch.no_grad()
     def _visualise(self, epoch):
@@ -372,7 +340,6 @@ class InfoGANTrainer:
         CONT_DIM = self.CONT_DIM
         device = self.device
 
-        # Fixed first categorical code to class 0, sweep continuous codes
         c0 = torch.zeros(10, self.CAT_DIM, device=device)
         c0[:, 0] = 1.0
         zn = torch.zeros(10, NOISE_DIM, device=device)
@@ -389,9 +356,6 @@ class InfoGANTrainer:
 
         self.G.train()
 
-    # -----------------------------------------------------------------------
-    # Training loop
-    # -----------------------------------------------------------------------
 
     def train(self, start_epoch=0):
         cfg = self.cfg
@@ -437,9 +401,6 @@ class InfoGANTrainer:
         self.writer.close()
         print('Training complete.')
 
-    # -----------------------------------------------------------------------
-    # Checkpoint helpers
-    # -----------------------------------------------------------------------
 
     def _save_checkpoint(self, epoch, final=False):
         tag = 'final' if final else f'epoch{epoch:03d}'

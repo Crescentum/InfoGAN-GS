@@ -46,9 +46,6 @@ DATASET_CFG = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Transforms
-# ---------------------------------------------------------------------------
 
 def _mnist_transform():
     return transforms.Compose([
@@ -70,9 +67,6 @@ def _celeba_transform(image_size: int = 64):
     ])
 
 
-# ---------------------------------------------------------------------------
-# Helper: clear error when data is missing
-# ---------------------------------------------------------------------------
 
 def _check_data(data_dir: str, expected_path: str, name: str):
     full = os.path.join(data_dir, expected_path)
@@ -89,9 +83,6 @@ def _check_data(data_dir: str, expected_path: str, name: str):
         )
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 def build_loader(
     dataset    : str,

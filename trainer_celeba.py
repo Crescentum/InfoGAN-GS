@@ -36,9 +36,7 @@ def _load_model_module(dataset: str):
         )
 
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
+
 
 @dataclass
 class TrainerConfig:
@@ -46,29 +44,23 @@ class TrainerConfig:
     dataset: str = 'mnist'    
     data_dir: str = './data'
 
-    # training
     batch_size:        int   = 128
     max_epochs:        int   = 50
     updates_per_epoch: int   = 0
 
-    # optimiser
     lr_d:       float = 2e-4
     lr_g:       float = 1e-3
     adam_beta1: float = 0.5
     adam_beta2: float = 0.999
 
-    # MI loss weights
     lambda_disc: float = 1.0
     lambda_cont: float = 0.1
 
-    # WGAN-GP
     lambda_gp: float = 10.0
     n_critic:  int   = 5
 
-    # InfoNCE
     infonce_temp: float = 0.1
 
-    # logging
     log_dir:        str = 'logs'
     checkpoint_dir: str = 'checkpoints'
     save_every:     int = 10
@@ -138,7 +130,6 @@ def set_requires_grad(module, requires_grad):
 def mi_orig_discrete(c_cat, cat_prob, cat_dim):
 
     if isinstance(cat_prob, list):
-        # Multiple categorical codes (e.g., SVHN: 4 codes x 10 classes)
         n_cats = len(cat_prob)
         total_loss = 0.0
         for i in range(n_cats):
@@ -146,9 +137,8 @@ def mi_orig_discrete(c_cat, cat_prob, cat_dim):
             targets = c_i.argmax(dim=1)
             logits = torch.log(cat_prob[i] + TINY)
             total_loss += F.cross_entropy(logits, targets)
-        return total_loss / n_cats  # average per code
+        return total_loss / n_cats  
     else:
-        # Single categorical code (MNIST)
         targets = c_cat.argmax(dim=1)
         logits  = torch.log(cat_prob + TINY)
         return F.cross_entropy(logits, targets)
@@ -178,9 +168,7 @@ def mi_infonce_discrete(c_cat, cat_prob, cat_dim, temperature=0.1):
         return F.cross_entropy(logits, targets)
 
 
-# ---------------------------------------------------------------------------
-# Trainer
-# ---------------------------------------------------------------------------
+
 
 class InfoGANTrainer:
 
@@ -191,7 +179,6 @@ class InfoGANTrainer:
               f"mode={cfg.mode}  "
               f"(wgan_gp={cfg.use_wgan_gp}, infonce={cfg.use_infonce})")
 
-        # ── load the right model file ────────────────────────────────────────
         m = _load_model_module(cfg.dataset)
         self.Generator      = m.Generator
         self.DiscriminatorQ = m.DiscriminatorQ
@@ -207,7 +194,6 @@ class InfoGANTrainer:
             print("[Trainer] CONT_DIM=0, forcing lambda_cont=0.0")
             cfg.lambda_cont = 0.0
 
-        # ── networks ────────────────────────────────────────────────────────
         self.G  = m.Generator().to(self.device)
         self.DQ = m.DiscriminatorQ()
 
@@ -223,7 +209,6 @@ class InfoGANTrainer:
 
         self.DQ = self.DQ.to(self.device)
 
-        # ── optimisers ──────────────────────────────────────────────────────
         self.opt_G = torch.optim.Adam(
             self.G.parameters(),
             lr=cfg.lr_g, betas=(cfg.adam_beta1, cfg.adam_beta2),
@@ -233,24 +218,18 @@ class InfoGANTrainer:
             lr=cfg.lr_d, betas=(cfg.adam_beta1, cfg.adam_beta2),
         )
 
-        # ── data ────────────────────────────────────────────────────────────
         self.loader = build_loader(
             cfg.dataset, data_dir=cfg.data_dir, batch_size=cfg.batch_size
         )
 
-        # ── logging ─────────────────────────────────────────────────────────
         ts       = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
         run_name = f"{cfg.dataset}_{cfg.mode}_{ts}"
         self.writer = SummaryWriter(os.path.join(cfg.log_dir, run_name))
         os.makedirs(cfg.checkpoint_dir, exist_ok=True)
 
-        # ── fixed latents for visualisation ──────────────────────────────────
         self.fixed_noise, self.fixed_c_cat, self.fixed_c_cont = \
             self._make_fixed_latents()
 
-    # -----------------------------------------------------------------------
-    # Fixed latents
-    # -----------------------------------------------------------------------
 
     def _make_fixed_latents(self):
         B      = 100
@@ -272,9 +251,6 @@ class InfoGANTrainer:
         c_cont = torch.zeros(B, CONT_DIM, device=device)
         return noise, c_cat, c_cont
 
-    # -----------------------------------------------------------------------
-    # MI loss selector
-    # -----------------------------------------------------------------------
 
     def _mi_loss(self, c_cat, cat_prob, c_cont, cont_mean, cont_std):
         if self.cfg.use_infonce:
@@ -284,9 +260,7 @@ class InfoGANTrainer:
         mi_cont = mi_orig_continuous(c_cont, cont_mean, cont_std)
         return mi_disc, mi_cont
 
-    # -----------------------------------------------------------------------
-    # Single training step
-    # -----------------------------------------------------------------------
+
 
     def _next_real_batch(self, data_it):
         try:
@@ -383,9 +357,6 @@ class InfoGANTrainer:
         logs.update(self._g_step(batch_size))
         return logs, data_it
 
-    # -----------------------------------------------------------------------
-    # Visualisation
-    # -----------------------------------------------------------------------
 
     @torch.no_grad()
     def _visualise(self, epoch):
@@ -446,9 +417,6 @@ class InfoGANTrainer:
 
         self.G.train()
 
-    # -----------------------------------------------------------------------
-    # Training loop
-    # -----------------------------------------------------------------------
 
     def train(self, start_epoch=0):
         cfg = self.cfg
@@ -497,9 +465,6 @@ class InfoGANTrainer:
         self.writer.close()
         print('Training complete.')
 
-    # -----------------------------------------------------------------------
-    # Checkpoint helpers
-    # -----------------------------------------------------------------------
 
     def _save_checkpoint(self, epoch, final=False):
         tag  = 'final' if final else f'epoch{epoch:03d}'
@@ -552,7 +517,7 @@ class InfoGANTrainer:
             torch.set_rng_state(ckpt['rng_state'])
         
         if 'cuda_rng_state' in ckpt and ckpt['cuda_rng_state'] is not None:
-            cuda_states = [s.cpu() for s in ckpt['cuda_rng_state']]  # 确保在 CPU
+            cuda_states = [s.cpu() for s in ckpt['cuda_rng_state']]  
             torch.cuda.set_rng_state_all(cuda_states)
         
         print(f'  Checkpoint ← {path}  (epoch {ckpt["epoch"]})')

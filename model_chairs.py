@@ -13,9 +13,6 @@ LATENT_DIM  = NOISE_DIM + CAT_DIM + CONT_DIM   # 189
 Q_OUT_DIM = CAT_DIM + CONT_DIM * 2   
 
 
-# ---------------------------------------------------------------------------
-# Weight initialisation
-# ---------------------------------------------------------------------------
 def _weights_init(m):
     if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
         nn.init.normal_(m.weight, mean=0.0, std=0.02)
@@ -26,9 +23,6 @@ def _weights_init(m):
         nn.init.constant_(m.bias, 0.0)
 
 
-# ---------------------------------------------------------------------------
-# Generator
-# ---------------------------------------------------------------------------
 class Generator(nn.Module):
 
     def __init__(self, latent_dim: int = LATENT_DIM):
@@ -46,27 +40,22 @@ class Generator(nn.Module):
         )
 
         self.deconv = nn.Sequential(
-            # (256, 8, 8) → (256, 8, 8)  [kernel=3, stride=1 keeps spatial size]
             nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
 
-            # (256, 8, 8) → (256, 8, 8)
             nn.ConvTranspose2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.ReLU(inplace=True),
 
-            # (256, 8, 8) → (128, 16, 16)
             nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(128),
             nn.ReLU(inplace=True),
 
-            # (128, 16, 16) → (64, 32, 32)
             nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
 
-            # (64, 32, 32) → (1, 64, 64)
             nn.ConvTranspose2d(64, 1, kernel_size=4, stride=2, padding=1, bias=True),
             nn.Sigmoid(),
         )
@@ -74,9 +63,9 @@ class Generator(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
-        out = self.fc(z)                        # (B, 8*8*256)
-        out = out.view(-1, 256, 8, 8)           # (B, 256, 8, 8)
-        img = self.deconv(out)                  # (B, 1, 64, 64)
+        out = self.fc(z)                       
+        out = out.view(-1, 256, 8, 8)          
+        img = self.deconv(out)              
         return img
 
 class DiscriminatorQ(nn.Module):
@@ -86,26 +75,21 @@ class DiscriminatorQ(nn.Module):
         super().__init__()
 
         self.shared_conv = nn.Sequential(
-            # (1, 64, 64) → (64, 32, 32)
             nn.Conv2d(1, 64, kernel_size=4, stride=2, padding=1, bias=True),
             nn.LeakyReLU(0.1, inplace=True),
 
-            # (64, 32, 32) → (128, 16, 16)
             nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(128),
             nn.LeakyReLU(0.1, inplace=True),
 
-            # (128, 16, 16) → (256, 8, 8)
             nn.Conv2d(128, 256, kernel_size=4, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.LeakyReLU(0.1, inplace=True),
 
-            # (256, 8, 8) → (256, 8, 8)  [kernel=3, stride=1 keeps size]
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.LeakyReLU(0.1, inplace=True),
 
-            # (256, 8, 8) → (256, 8, 8)
             nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(256),
             nn.LeakyReLU(0.1, inplace=True),
@@ -133,10 +117,10 @@ class DiscriminatorQ(nn.Module):
         self.apply(_weights_init)
 
     def forward(self, x: torch.Tensor):
-        feat = self.shared_conv(x)      # (B, 256, 8, 8)
-        feat = self.shared_fc(feat)     # (B, 1024)
-        d_out = self.d_head(feat)       # (B, 1)
-        q_out = self.q_head(feat)       # (B, 62)
+        feat = self.shared_conv(x)    
+        feat = self.shared_fc(feat)    
+        d_out = self.d_head(feat)      
+        q_out = self.q_head(feat)     
         return d_out, q_out
 
 
@@ -174,10 +158,10 @@ def sample_latent(batch_size: int, device: torch.device, temperature: float = 1.
     else:
         cat_blocks = []
         for dim in CAT_DIMS:
-            logits = torch.zeros(batch_size, dim, device=device)   # 均匀分布
+            logits = torch.zeros(batch_size, dim, device=device)  
             one_hot = F.gumbel_softmax(logits, tau=temperature, hard=True)
             cat_blocks.append(one_hot)
-        c_cat = torch.cat(cat_blocks, dim=1)   # shape (B, sum(CAT_DIMS))
+        c_cat = torch.cat(cat_blocks, dim=1)  
 
         c_cont = torch.FloatTensor(batch_size, CONT_DIM).uniform_(-1, 1).to(device)
 

@@ -27,7 +27,6 @@ def _weights_init(m):
 
 
 class Generator(nn.Module):
-    """Map a 138-D InfoGAN latent vector to a 64x64 RGB CelebA image."""
 
     def __init__(self, latent_dim: int = LATENT_DIM):
         super().__init__()
@@ -69,7 +68,6 @@ class Generator(nn.Module):
 
 
 class DiscriminatorQ(nn.Module):
-    """Shared D/Q network for 64x64 RGB CelebA images."""
 
     def __init__(self, q_out_dim: int = Q_OUT_DIM):
         super().__init__()

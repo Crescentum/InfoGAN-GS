@@ -16,9 +16,6 @@ from datasets import denorm
 TINY = 1e-8
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _to_numpy_img(tensor):
     img = tensor.cpu().clamp(0, 1).numpy()
@@ -52,9 +49,6 @@ def _load_DQ(ckpt_path, device):
     return DQ
 
 
-# ---------------------------------------------------------------------------
-# Grid builders
-# ---------------------------------------------------------------------------
 
 @torch.no_grad()
 def _make_c1_grid(G, device, n_rows=5, n_cols=10):
@@ -83,9 +77,6 @@ def _make_cont_grid(G, device, cont_idx=0, cont_range=2.0, n_rows=5, n_cols=10):
     return denorm(G(m.concat_latent(z_noise, c_cat, c_cont)), '01')
 
 
-# ---------------------------------------------------------------------------
-# Figure 2
-# ---------------------------------------------------------------------------
 
 @torch.no_grad()
 def plot_figure2(G_infogan, device, G_gan=None,
@@ -126,9 +117,6 @@ def plot_figure2(G_infogan, device, G_gan=None,
     print(f"  Figure 2 saved → {save_path}")
 
 
-# ---------------------------------------------------------------------------
-# Figure 1 — L_I convergence curve
-# ---------------------------------------------------------------------------
 
 def plot_mi_curve(li_infogan, li_baseline,
                   save_path='results/mnist_figure1_mi.png'):
@@ -156,9 +144,7 @@ def plot_mi_curve(li_infogan, li_baseline,
     print(f"  Figure 1 saved → {save_path}")
 
 
-# ---------------------------------------------------------------------------
-# Classification error  (Section 7.2)
-# ---------------------------------------------------------------------------
+
 
 @torch.no_grad()
 def compute_classification_error(G, DQ, device, n_samples_per_class=256):
@@ -201,9 +187,7 @@ def compute_classification_error(G, DQ, device, n_samples_per_class=256):
     return error
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+
 
 def main():
     p = argparse.ArgumentParser(description='MNIST InfoGAN visualization')

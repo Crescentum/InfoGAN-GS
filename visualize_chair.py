@@ -15,7 +15,6 @@ from datasets import DATASET_CFG, denorm, build_loader
 
 TINY = 1e-8
 
-# Fallback configurations for datasets not in DATASET_CFG
 DEFAULT_CFG = {
     'mnist': {'pixel_range': '01', 'img_size': 28, 'channels': 1},
     'svhn': {'pixel_range': '11', 'img_size': 32, 'channels': 3},
@@ -346,7 +345,7 @@ if __name__ == '__main__':
     p.add_argument('--ckpt', required=True)
     p.add_argument('--ckpt_gan', default=None)
     p.add_argument('--dataset', default='mnist',
-                   choices=['mnist', 'svhn', 'celeba', 'chairs'])
+                   choices=['mnist', 'celeba', 'chairs'])
     p.add_argument('--out_dir', default='results')
     p.add_argument('--device', default='cuda')
     args = p.parse_args()
