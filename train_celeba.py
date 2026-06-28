@@ -17,12 +17,10 @@ def parse_args():
     p.add_argument("--ckpt_dir", type=str, default="./checkpoints/celeba_single_code")
     p.add_argument("--lr_d", type=float, default=2e-4)
     p.add_argument("--lr_g", type=float, default=2e-4)
-    p.add_argument("--lambda_gp", type=float, default=10.0)
     p.add_argument("--lambda_disc", type=float, default=1.0)
     p.add_argument("--lambda_cont", type=float, default=0.0)
-    p.add_argument("--n_critic", type=int, default=None,
-                   help="critic updates per generator update")
-    p.add_argument("--infonce_temp", type=float, default=0.1)
+    p.add_argument("--n_critic", type=int, default=1,
+                   help="discriminator updates per generator update")
     p.add_argument("--resume", type=str, default=None,
                    help="path to .pt checkpoint to resume from")
     p.add_argument("--start_epoch", type=int, default=None,
@@ -37,12 +35,14 @@ def main():
         ckpt = torch.load(args.resume, map_location="cpu")
         resumed_mode = ckpt.get("mode", args.mode)
         resumed_epoch = ckpt.get("epoch", -1)
-        if args.mode != "vanilla" and args.mode != resumed_mode:
-            print(f"[Warning] Overriding --mode {args.mode} -> {resumed_mode}")
+        if resumed_mode not in VALID_MODES:
+            raise ValueError(
+                f"CelebA currently supports only {VALID_MODES}; "
+                f"checkpoint mode is '{resumed_mode}'."
+            )
         args.mode = resumed_mode
         print(f"[Resume] Checkpoint: dataset=celeba, mode={resumed_mode}, epoch={resumed_epoch}")
 
-    n_critic = (5 if "wgan_gp" in args.mode else 1) if args.n_critic is None else args.n_critic
     cfg = TrainerConfig(
         mode=args.mode,
         dataset="celeba",
@@ -54,11 +54,9 @@ def main():
         checkpoint_dir=args.ckpt_dir,
         lr_d=args.lr_d,
         lr_g=args.lr_g,
-        lambda_gp=args.lambda_gp,
         lambda_disc=args.lambda_disc,
         lambda_cont=args.lambda_cont,
-        n_critic=n_critic,
-        infonce_temp=args.infonce_temp,
+        n_critic=args.n_critic,
     )
 
     trainer = InfoGANTrainer(cfg)

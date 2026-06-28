@@ -69,5 +69,6 @@ results\celeba_stage4_single_code_infogan_exported\...\traversal_c1_category_ste
 - CelebA 专用 trainer 是 `trainer_celeba.py`
 - CelebA 专用可视化脚本是 `visualize_celeba.py`
 - CelebA 专用导出脚本是 `export_results_celeba.py`
+- 当前 CelebA 只支持 vanilla InfoGAN，不包含 InfoNCE 或 WGAN-GP 模式
 - 当前版本先使用 1 个 categorical latent code，每个 code 有 10 类
 - 先证明能生成脸，再证明 `mi_disc` 下降、latent traversal 有变化

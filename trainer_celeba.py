@@ -14,7 +14,7 @@ from tqdm import tqdm
 from datasets import build_loader
 
 TINY = 1e-8
-VALID_MODES = ('vanilla', 'wgan_gp', 'infonce', 'wgan_gp+infonce')
+VALID_MODES = ('vanilla',)
 
 def _load_model_module(dataset: str):
     """
@@ -56,10 +56,7 @@ class TrainerConfig:
     lambda_disc: float = 1.0
     lambda_cont: float = 0.1
 
-    lambda_gp: float = 10.0
-    n_critic:  int   = 5
-
-    infonce_temp: float = 0.1
+    n_critic:  int   = 1
 
     log_dir:        str = 'logs'
     checkpoint_dir: str = 'checkpoints'
@@ -72,14 +69,6 @@ class TrainerConfig:
         if self.n_critic < 1:
             raise ValueError(f"n_critic must be >= 1, got {self.n_critic}")
 
-    @property
-    def use_wgan_gp(self) -> bool:
-        return 'wgan_gp' in self.mode
-
-    @property
-    def use_infonce(self) -> bool:
-        return 'infonce' in self.mode
-
 
 def bce_d_loss(real_d, fake_d):
     real_targets = torch.ones_like(real_d)
@@ -89,32 +78,6 @@ def bce_d_loss(real_d, fake_d):
 
 def bce_g_loss(fake_d):
     return F.binary_cross_entropy_with_logits(fake_d, torch.ones_like(fake_d))
-
-def wgan_d_loss(real_d, fake_d):
-    return torch.mean(fake_d) - torch.mean(real_d)
-
-def wgan_g_loss(fake_d):
-    return -torch.mean(fake_d)
-
-def gradient_penalty(DQ, real_imgs, fake_imgs, device):
-    B   = real_imgs.size(0)
-    eps = torch.rand(B, 1, 1, 1, device=device)
-    x_hat = (eps * real_imgs + (1 - eps) * fake_imgs).requires_grad_(True)
-    d_hat, _ = DQ(x_hat)
-    grads = torch.autograd.grad(
-        outputs=d_hat, inputs=x_hat,
-        grad_outputs=torch.ones_like(d_hat),
-        create_graph=True, retain_graph=True,
-    )[0]
-    grad_norm = grads.view(B, -1).norm(2, dim=1)
-    return torch.mean((grad_norm - 1.) ** 2)
-
-def replace_batchnorm_with_identity(module):
-    for name, child in list(module.named_children()):
-        if isinstance(child, (nn.BatchNorm1d, nn.BatchNorm2d)):
-            setattr(module, name, nn.Identity())
-        else:
-            replace_batchnorm_with_identity(child)
 
 def replace_sigmoid_with_identity(module):
     for name, child in list(module.named_children()):
@@ -150,34 +113,13 @@ def mi_orig_continuous(c_cont, cont_mean, cont_std):
            + 0.5 * ((c_cont - cont_mean) / (cont_std + TINY)) ** 2)
     return nll.mean()
 
-def mi_infonce_discrete(c_cat, cat_prob, cat_dim, temperature=0.1):
-    if isinstance(cat_prob, list):
-        n_cats = len(cat_prob)
-        total_loss = 0.0
-        for i in range(n_cats):
-            c_i = c_cat[:, i * cat_dim:(i + 1) * cat_dim]
-            log_q = torch.log(cat_prob[i] + TINY)
-            logits = torch.matmul(log_q, c_i.T) / temperature
-            targets = torch.arange(c_i.size(0), device=c_i.device)
-            total_loss += F.cross_entropy(logits, targets)
-        return total_loss / n_cats
-    else:
-        log_q  = torch.log(cat_prob + TINY)
-        logits = torch.matmul(log_q, c_cat.T) / temperature
-        targets = torch.arange(c_cat.size(0), device=c_cat.device)
-        return F.cross_entropy(logits, targets)
-
-
-
-
 class InfoGANTrainer:
 
     def __init__(self, cfg: TrainerConfig):
         self.cfg    = cfg
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"[Trainer] device={self.device}  dataset={cfg.dataset}  "
-              f"mode={cfg.mode}  "
-              f"(wgan_gp={cfg.use_wgan_gp}, infonce={cfg.use_infonce})")
+              f"mode={cfg.mode}")
 
         m = _load_model_module(cfg.dataset)
         self.Generator      = m.Generator
@@ -198,14 +140,6 @@ class InfoGANTrainer:
         self.DQ = m.DiscriminatorQ()
 
         replace_sigmoid_with_identity(self.DQ.d_head)
-
-        if cfg.use_wgan_gp:
-            replace_batchnorm_with_identity(self.DQ)
-            old_linear = self.DQ.d_head[0]  # first layer is Linear
-            in_features = old_linear.in_features
-            self.DQ.d_head = nn.Sequential(
-                nn.Linear(in_features, 1)
-            )
 
         self.DQ = self.DQ.to(self.device)
 
@@ -253,10 +187,7 @@ class InfoGANTrainer:
 
 
     def _mi_loss(self, c_cat, cat_prob, c_cont, cont_mean, cont_std):
-        if self.cfg.use_infonce:
-            mi_disc = mi_infonce_discrete(c_cat, cat_prob, self.CAT_DIM, self.cfg.infonce_temp)
-        else:
-            mi_disc = mi_orig_discrete(c_cat, cat_prob, self.CAT_DIM)
+        mi_disc = mi_orig_discrete(c_cat, cat_prob, self.CAT_DIM)
         mi_cont = mi_orig_continuous(c_cont, cont_mean, cont_std)
         return mi_disc, mi_cont
 
@@ -286,12 +217,7 @@ class InfoGANTrainer:
         fake_d, q_out = self.DQ(fake_imgs)
         cat_prob, cont_mean, cont_std = self.parse_q_output(q_out)
 
-        if cfg.use_wgan_gp:
-            d_loss = (wgan_d_loss(real_d, fake_d)
-                      + cfg.lambda_gp * gradient_penalty(
-                          self.DQ, real_imgs, fake_imgs, device))
-        else:
-            d_loss = bce_d_loss(real_d, fake_d)
+        d_loss = bce_d_loss(real_d, fake_d)
 
         mi_disc, mi_cont = self._mi_loss(c_cat, cat_prob, c_cont,
                                           cont_mean, cont_std)
@@ -326,7 +252,7 @@ class InfoGANTrainer:
             fake_d_g, q_out_g = self.DQ(fake_imgs_g)
             cat_prob_g, cont_mean_g, cont_std_g = self.parse_q_output(q_out_g)
 
-            g_loss = wgan_g_loss(fake_d_g) if cfg.use_wgan_gp else bce_g_loss(fake_d_g)
+            g_loss = bce_g_loss(fake_d_g)
 
             mi_disc_g, mi_cont_g = self._mi_loss(c_cat, cat_prob_g, c_cont,
                                                   cont_mean_g, cont_std_g)
@@ -489,16 +415,7 @@ class InfoGANTrainer:
         ckpt = torch.load(path, map_location='cpu')
         
         self.G.load_state_dict(ckpt['G_state'])
-        try:
-            self.DQ.load_state_dict(ckpt['DQ_state'])
-        except RuntimeError as exc:
-            if self.cfg.use_wgan_gp:
-                raise RuntimeError(
-                    "This WGAN-GP checkpoint is not compatible with the current "
-                    "critic architecture. Start a fresh WGAN-GP run, or use a "
-                    "checkpoint created after the BatchNorm removal change."
-                ) from exc
-            raise
+        self.DQ.load_state_dict(ckpt['DQ_state'])
         self.opt_G.load_state_dict(ckpt['opt_G_state'])
         self.opt_DQ.load_state_dict(ckpt['opt_DQ_state'])
         

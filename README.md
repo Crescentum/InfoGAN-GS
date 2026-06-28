@@ -73,3 +73,39 @@ data/
     ├── list_attr_celeba.txt
     └── list_eval_partition.txt
 ```
+
+## CelebA Experiments
+
+CelebA currently uses the dedicated scripts below:
+
+- model: `model_celeba.py`
+- trainer: `trainer_celeba.py`
+- training entry point: `train_celeba.py`
+- visualization: `visualize_celeba.py`
+- TensorBoard export: `export_results_celeba.py`
+
+Current CelebA runs support only vanilla InfoGAN. InfoNCE and WGAN-GP modes are not part of the CelebA setup.
+
+### Train from scratch
+
+```bash
+python train_celeba.py --mode vanilla --epochs 10 --updates_per_epoch 200 --batch_size 128 --lambda_disc 1.0 --lambda_cont 0 --n_critic 1 --lr_g 0.0002 --lr_d 0.0002 --ckpt_dir checkpoints/celeba_stage4_single_code_infogan --log_dir logs/celeba_stage4_single_code_infogan
+```
+
+### Resume training
+
+```bash
+python train_celeba.py --mode vanilla --epochs 50 --updates_per_epoch 200 --batch_size 128 --resume checkpoints/celeba_stage4_single_code_infogan/celeba_vanilla_final.pt --ckpt_dir checkpoints/celeba_stage4_single_code_infogan --log_dir logs/celeba_stage4_single_code_infogan
+```
+
+### Generate latent traversal images
+
+```bash
+python visualize_celeba.py --ckpt checkpoints/celeba_stage4_single_code_infogan/celeba_vanilla_final.pt --out_dir results/celeba_stage4_single_code_infogan_from_ckpt
+```
+
+### Export loss curves and TensorBoard images
+
+```bash
+python export_results_celeba.py --log_dir logs/celeba_stage4_single_code_infogan --out_dir results/celeba_stage4_single_code_infogan_exported
+```
