@@ -1,24 +1,3 @@
-"""
-Visualize vanilla InfoGAN results on MNIST.
-
-Figures produced:
-  Figure 2: (a) Varying c1 — digit type
-            (b) Varying c1 on GAN baseline — no structure [optional]
-            (c) Varying c2 — continuous code sweep
-            (d) Varying c3 — continuous code sweep
-  Figure 1: L_I convergence curve (InfoGAN vs GAN baseline)
-  Classification error: Section 7.2, target ~5%
-
-Usage:
-    # Figure 2 (a)(c)(d) + classification error
-    python visualize_mnist.py --ckpt checkpoints/mnist_vanilla_final.pt
-
-    # Full Figure 2 with GAN baseline subplot (b)
-    python visualize_mnist.py \
-        --ckpt     checkpoints/mnist_vanilla_final.pt \
-        --ckpt_gan checkpoints/mnist_vanilla_gan_final.pt
-"""
-
 import os
 import math
 import argparse

@@ -1,38 +1,3 @@
-"""
-datasets.py — DataLoader factory for MNIST, SVHN, CelebA.
-
-Key differences between datasets that affect preprocessing:
-  MNIST  : 28×28 grayscale,  pixel range [0, 1],  G uses Sigmoid
-  SVHN   : 32×32 RGB,        pixel range [-1, 1], G uses Tanh
-  CelebA : 64×64 RGB,        pixel range [-1, 1], G uses Tanh
-
-Data must be downloaded in advance (cluster has no internet access).
-Expected directory layout under data_dir:
-
-  MNIST:
-    data/MNIST/raw/train-images-idx3-ubyte
-    data/MNIST/raw/train-labels-idx3-ubyte
-    data/MNIST/raw/t10k-images-idx3-ubyte
-    data/MNIST/raw/t10k-labels-idx3-ubyte
-
-  SVHN:
-    data/train_32x32.mat
-    data/test_32x32.mat
-
-  CelebA:
-    data/celeba/img_align_celeba/*.jpg
-    data/celeba/list_attr_celeba.txt
-    data/celeba/list_eval_partition.txt
-
-Download on a machine with internet access, then scp to cluster:
-    python -c "
-    from torchvision import datasets
-    datasets.MNIST('./data', download=True)
-    datasets.SVHN('./data', download=True)
-    datasets.CelebA('./data', download=True)
-    "
-"""
-
 import os
 from dataclasses import dataclass
 from typing import Tuple
@@ -41,10 +6,6 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-
-# ---------------------------------------------------------------------------
-# Per-dataset metadata
-# ---------------------------------------------------------------------------
 @dataclass
 class DatasetMeta:
     image_size  : int

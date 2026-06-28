@@ -1,18 +1,3 @@
-"""
-InfoGAN Trainer for MNIST — vanilla InfoGAN only.
-
-Reproduces Chen et al., NeurIPS 2016 (InfoGAN) on MNIST.
-
-Architecture follows Appendix C.1 exactly:
-  - Generator:      FC1024 → FC7x7x128 → ConvT64 → ConvT1 (Sigmoid)
-  - Discriminator:  Conv64 → Conv128 → FC1024 → D head / Q head
-  - Latent codes:   z(62) + c1_categorical(10) + c2,c3_continuous(2)
-
-Training objective (Eq. 6):
-  min_{G,Q} max_D  V(D,G) - λ * L_I(G,Q)
-  where L_I is the mutual information lower bound.
-"""
-
 import os
 import math
 import datetime

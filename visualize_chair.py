@@ -1,8 +1,3 @@
-"""
-visualize.py — Reproduce all figures needed for the report.
-Compatible with MNIST, SVHN, CelebA, and Chairs (multiple categorical codes).
-"""
-
 import os
 import math
 import importlib

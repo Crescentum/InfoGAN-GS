@@ -1,26 +1,3 @@
-"""
-InfoGAN Trainer — two independent improvement switches:
-
-  use_wgan_gp : bool   replace BCE-GAN with WGAN-GP          [improvement 1]
-  use_infonce : bool   replace Q-network MI with InfoNCE      [improvement 2]
-
-Four resulting combinations (set via TrainerConfig):
-  mode='vanilla'          use_wgan_gp=False  use_infonce=False
-  mode='wgan_gp'          use_wgan_gp=True   use_infonce=False
-  mode='infonce'          use_wgan_gp=False  use_infonce=True
-  mode='wgan_gp+infonce'  use_wgan_gp=True   use_infonce=True
-
-Model files (one per dataset, named model_<dataset>.py):
-  model_mnist.py   ← already done
-  model_svhn.py    ← done
-  model_celeba.py  ← to implement
-
-Usage:
-    cfg = TrainerConfig(mode='vanilla', dataset='mnist')
-    trainer = InfoGANTrainer(cfg)
-    trainer.train()
-"""
-
 import os
 import math
 import importlib
@@ -38,11 +15,6 @@ from datasets import build_loader
 
 TINY = 1e-8
 VALID_MODES = ('vanilla', 'wgan_gp', 'infonce', 'wgan_gp+infonce')
-
-
-# ---------------------------------------------------------------------------
-# Dynamic model import  (picks model_mnist / model_svhn / model_celeba)
-# ---------------------------------------------------------------------------
 
 def _load_model_module(dataset: str):
     """
@@ -70,8 +42,8 @@ def _load_model_module(dataset: str):
 
 @dataclass
 class TrainerConfig:
-    mode:    str = 'vanilla'   # one of VALID_MODES
-    dataset: str = 'mnist'     # 'mnist' | 'svhn' | 'celeba'
+    mode:    str = 'vanilla'  
+    dataset: str = 'mnist'    
     data_dir: str = './data'
 
     # training
@@ -116,10 +88,6 @@ class TrainerConfig:
     def use_infonce(self) -> bool:
         return 'infonce' in self.mode
 
-
-# ---------------------------------------------------------------------------
-# Loss functions
-# ---------------------------------------------------------------------------
 
 def bce_d_loss(real_d, fake_d):
     real_targets = torch.ones_like(real_d)
@@ -168,12 +136,7 @@ def set_requires_grad(module, requires_grad):
         param.requires_grad_(requires_grad)
 
 def mi_orig_discrete(c_cat, cat_prob, cat_dim):
-    """
-    Compute discrete MI loss.
 
-    Supports both single categorical code (MNIST: c_cat shape (B, 10), cat_prob shape (B, 10))
-    and multiple categorical codes (SVHN: c_cat shape (B, 40), cat_prob list of 4 x (B, 10)).
-    """
     if isinstance(cat_prob, list):
         # Multiple categorical codes (e.g., SVHN: 4 codes x 10 classes)
         n_cats = len(cat_prob)
@@ -198,9 +161,6 @@ def mi_orig_continuous(c_cont, cont_mean, cont_std):
     return nll.mean()
 
 def mi_infonce_discrete(c_cat, cat_prob, cat_dim, temperature=0.1):
-    """
-    InfoNCE discrete MI loss. Supports single or multiple categorical codes.
-    """
     if isinstance(cat_prob, list):
         n_cats = len(cat_prob)
         total_loss = 0.0

@@ -1,9 +1,3 @@
-"""
-InfoGAN Trainer — supports both single (MNIST) and multiple (Chairs/SVHN) categorical codes.
-
-Modes: vanilla, wgan_gp, infonce, wgan_gp+infonce
-"""
-
 import os
 import math
 import importlib

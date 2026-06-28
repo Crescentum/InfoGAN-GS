@@ -1,16 +1,3 @@
-"""
-InfoGAN network architectures for CelebA.
-
-CelebA uses one categorical latent code with 10 categories:
-
-    latent = [noise(128) || c1(10)]
-
-The generator maps this 138-D latent vector to a 64x64 RGB face image in
-[-1, 1]. The discriminator and Q network share a convolutional trunk. D
-predicts real/fake, and Q predicts the posterior distribution of the
-categorical code.
-"""
-
 from __future__ import annotations
 
 import torch
@@ -128,14 +115,7 @@ class DiscriminatorQ(nn.Module):
 
 
 def parse_q_output(q_out: torch.Tensor):
-    """
-    Return categorical posteriors for the 10 code groups.
 
-    Returns:
-        cat_probs: list of 10 tensors, each shaped (B, 10)
-        cont_mean: empty tensor shaped (B, 0)
-        cont_std: empty tensor shaped (B, 0)
-    """
     cat_probs = []
     for i in range(N_CATS):
         start = i * CAT_DIM
@@ -166,25 +146,3 @@ def concat_latent(z_noise: torch.Tensor,
                   c_cont: torch.Tensor) -> torch.Tensor:
     return torch.cat([z_noise, c_cat, c_cont], dim=1)
 
-
-if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    B = 8
-    G = Generator().to(device)
-    DQ = DiscriminatorQ().to(device)
-
-    z_noise, c_cat, c_cont = sample_latent(B, device)
-    z = concat_latent(z_noise, c_cat, c_cont)
-    fake_imgs = G(z)
-    d_out, q_out = DQ(fake_imgs)
-    cat_probs, cont_mean, cont_std = parse_q_output(q_out)
-
-    print("=== CelebA shape checks ===")
-    print(f"z         : {z.shape}")
-    print(f"fake_imgs : {fake_imgs.shape}")
-    print(f"d_out     : {d_out.shape}")
-    print(f"q_out     : {q_out.shape}")
-    print(f"cat_probs : {[p.shape for p in cat_probs]}")
-    print(f"cont_mean : {cont_mean.shape}")
-    print(f"cont_std  : {cont_std.shape}")
-    print(f"image range: [{fake_imgs.min():.3f}, {fake_imgs.max():.3f}]")

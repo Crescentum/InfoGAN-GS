@@ -1,16 +1,3 @@
-"""
-Train vanilla InfoGAN on MNIST.
-
-Examples:
-    # InfoGAN
-    python train_mnist.py --epochs 50
-
-    # GAN baseline (no MI regularization, for Figure 1 comparison)
-    python train_mnist.py --lambda_disc 0.0 --lambda_cont 0.0 --ckpt_dir ./checkpoints_gan
-
-    # resume
-    python train_mnist.py --resume checkpoints/mnist_vanilla_epoch049.pt
-"""
 
 import argparse
 from trainer_mnist import InfoGANTrainer, TrainerConfig

@@ -1,37 +1,16 @@
-"""
-InfoGAN network architectures for 3D Chairs dataset.
-Follows Appendix C.5 of the InfoGAN paper exactly.
-
-Latent spec:
-  z_noise  : Uniform(128)           -- not regularised
-  c1,c3,c4 : Categorical(20) each    -- regularised, discrete (3 codes)
-  c5       : Uniform(1)              -- regularised, continuous
-  total dim: 128 + 3*20 + 1 = 189
-
-Generator output: 64×64 grayscale image
-"""
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# ---------------------------------------------------------------------------
-# Hyper-parameters
-# ---------------------------------------------------------------------------
+
 NOISE_DIM   = 128
-CAT_DIMS    = (20, 20, 20)   # 3 discrete latent codes (c1, c3, c4)
-CAT_DIM     = sum(CAT_DIMS)  # 60
+CAT_DIMS    = (20, 20, 20)  
+CAT_DIM     = sum(CAT_DIMS) 
 N_CATS      = 3
-CONT_DIM    = 1              # 1 continuous latent code (c5)
+CONT_DIM    = 1             
 LATENT_DIM  = NOISE_DIM + CAT_DIM + CONT_DIM   # 189
 
-# Q head output layout:
-#   [0:20 ]  -> c1 categorical logits
-#   [20:40 ]  -> c3 categorical logits
-#   [40:60 ]  -> c4 categorical logits
-#   [60:61 ]  -> continuous mean
-#   [61:62 ]  -> continuous log-std
-Q_OUT_DIM = CAT_DIM + CONT_DIM * 2   # 62
+Q_OUT_DIM = CAT_DIM + CONT_DIM * 2   
 
 
 # ---------------------------------------------------------------------------
@@ -51,19 +30,6 @@ def _weights_init(m):
 # Generator
 # ---------------------------------------------------------------------------
 class Generator(nn.Module):
-    """
-    Maps latent vector [z || c1 || c3 || c4 || c5] (dim=189) to a 64×64 greyscale image.
-
-    Paper Table 6 generator column:
-      FC 1024 → BN → ReLU
-      FC 8×8×256 → BN → ReLU
-      reshape (256, 8, 8)
-      4×4 upconv 256 → BN → ReLU   (stride 1, kernel 3 to keep 8×8)
-      4×4 upconv 256 → BN → ReLU   (stride 1, kernel 3 to keep 8×8)
-      4×4 upconv 128 → BN → ReLU   stride 2  (8 → 16)
-      4×4 upconv  64 → BN → ReLU   stride 2  (16 → 32)
-      4×4 upconv   1 → Sigmoid      stride 2  (32 → 64)
-    """
 
     def __init__(self, latent_dim: int = LATENT_DIM):
         super().__init__()
@@ -113,25 +79,8 @@ class Generator(nn.Module):
         img = self.deconv(out)                  # (B, 1, 64, 64)
         return img
 
-
-# ---------------------------------------------------------------------------
-# Discriminator + Q network
-# ---------------------------------------------------------------------------
 class DiscriminatorQ(nn.Module):
-    """
-    Shared convolutional trunk with two output heads.
 
-    Paper Table 6 discriminator/Q column:
-      Conv 4×4 stride 2 → 64ch  → lRELU(0.1)       [64 → 32]
-      Conv 4×4 stride 2 → 128ch → BN → lRELU(0.1) [32 → 16]
-      Conv 4×4 stride 2 → 256ch → BN → lRELU(0.1) [16 → 8]
-      Conv 4×4 stride 1 → 256ch → BN → lRELU(0.1) [8 → 8]  (kernel=3 keeps size)
-      Conv 4×4 stride 1 → 256ch → BN → lRELU(0.1) [8 → 8]  (kernel=3 keeps size)
-      Flatten
-      FC 1024 → BN → lRELU(0.1)
-      ├── [D head] FC 1   → Sigmoid
-      └── [Q head] FC 128 → BN → lRELU(0.1) → FC 62
-    """
 
     def __init__(self, q_out_dim: int = Q_OUT_DIM):
         super().__init__()
@@ -191,17 +140,8 @@ class DiscriminatorQ(nn.Module):
         return d_out, q_out
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def parse_q_output(q_out: torch.Tensor):
-    """
-    Decompose the raw Q head output into interpretable posterior parameters.
-    Returns:
-        cat_prob  : list of 3 tensors, each (B, 20)  (softmax probabilities)
-        cont_mean : (B, 1)
-        cont_std  : (B, 1)   (> 0)
-    """
+
     cat_logits = []
     offset = 0
     for dim in CAT_DIMS:
@@ -216,12 +156,7 @@ def parse_q_output(q_out: torch.Tensor):
 
 
 def sample_latent(batch_size: int, device: torch.device, temperature: float = 1.0):
-    """
-    Sample the full latent vector and return its components separately.
-      noise z : Uniform(-1, 1)  shape (B, NOISE_DIM)
-      c1,c3,c4: Categorical(20) returned as one-hot blocks in (B, sum(CAT_DIMS))
-      c5      : Uniform(-1, 1)  shape (B, CONT_DIM)
-    """
+
     z_noise = torch.FloatTensor(batch_size, NOISE_DIM).uniform_(-1, 1).to(device)
 
     if temperature < 0.0:
@@ -252,48 +187,5 @@ def sample_latent(batch_size: int, device: torch.device, temperature: float = 1.
 def concat_latent(z_noise: torch.Tensor,
                   c_cat: torch.Tensor,
                   c_cont: torch.Tensor) -> torch.Tensor:
-    """Concatenate components into the full latent vector (B, 189)."""
     return torch.cat([z_noise, c_cat, c_cont], dim=1)
 
-
-# ---------------------------------------------------------------------------
-# Sanity check
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Device: {device}\n")
-
-    B = 64
-    G = Generator().to(device)
-    DQ = DiscriminatorQ().to(device)
-
-    z_noise, c_cat, c_cont = sample_latent(B, device)
-    z = concat_latent(z_noise, c_cat, c_cont)   # (64, 189)
-
-    fake_imgs = G(z)                             # (64, 1, 64, 64)
-    d_out, q_out = DQ(fake_imgs)                 # (64,1)  (64,62)
-    cat_prob, cont_mean, cont_std = parse_q_output(q_out)
-
-    print("=== Shape checks ===")
-    print(f"  z          : {z.shape}")           # (64, 189)
-    print(f"  fake_imgs  : {fake_imgs.shape}")   # (64, 1, 64, 64)
-    print(f"  d_out      : {d_out.shape}")       # (64, 1)
-    print(f"  q_out      : {q_out.shape}")       # (64, 62)
-    print(f"  cat_prob[0]: {cat_prob[0].shape}")  # (64, 20)
-    print(f"  cont_mean  : {cont_mean.shape}")   # (64, 1)
-    print(f"  cont_std   : {cont_std.shape}")    # (64, 1)
-
-    print("\n=== Value checks ===")
-    print(f"  fake_imgs  range : [{fake_imgs.min():.3f}, {fake_imgs.max():.3f}]  (expect [0,1])")
-    print(f"  d_out      range : [{d_out.min():.3f},  {d_out.max():.3f}]   (expect (0,1))")
-    print(f"  cat_prob[0] sum  : {cat_prob[0].sum(dim=1).mean():.4f}  (expect 1.0)")
-    print(f"  cont_std   min   : {cont_std.min():.4f}  (expect > 0)")
-
-    print("\n=== Parameter counts ===")
-    g_params = sum(p.numel() for p in G.parameters())
-    dq_params = sum(p.numel() for p in DQ.parameters())
-    print(f"  Generator      : {g_params:,}")
-    print(f"  DiscriminatorQ : {dq_params:,}")
-    print(f"  Total          : {g_params + dq_params:,}")
-
-    print("\nAll checks passed.")

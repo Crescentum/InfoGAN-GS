@@ -1,17 +1,3 @@
-"""
-Export TensorBoard training results to ordinary files.
-
-This script makes the training output visible without opening TensorBoard:
-  - one PNG curve plot per run
-  - latest generated/traversal images from TensorBoard image summaries
-  - one CSV with scalar metrics per run
-  - one Markdown summary pointing to the exported files
-
-Usage:
-    python export_results_celeba.py
-    python export_results_celeba.py --log_dir logs/celeba_stage4_single_code_infogan --out_dir results/celeba_stage4_single_code_infogan_exported
-"""
-
 from __future__ import annotations
 
 import argparse

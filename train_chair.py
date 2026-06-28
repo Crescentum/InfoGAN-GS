@@ -1,26 +1,4 @@
-"""
-Entry point. Switch modes via --mode argument.
 
-Examples:
-    # baseline
-    python train.py --mode vanilla --dataset mnist --epochs 50
-
-    # improvement 1: WGAN-GP only
-    python train.py --mode wgan_gp --dataset mnist --epochs 50
-
-    # improvement 2: InfoNCE only
-    python train.py --mode infonce --dataset mnist --epochs 50
-
-    # both improvements combined
-    python train.py --mode wgan_gp+infonce --dataset mnist --epochs 50
-
-    # other datasets (model.py needs to be extended first)
-    python train.py --mode vanilla --dataset svhn   --epochs 50
-    python train.py --mode vanilla --dataset celeba --epochs 50
-
-    # resume from checkpoint
-    python train.py --mode vanilla --resume checkpoints/mnist_vanilla_epoch049.pt
-"""
 
 import argparse
 import torch

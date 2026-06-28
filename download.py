@@ -1,12 +1,3 @@
-"""
-Download datasets for the InfoGAN reproduction.
-
-MNIST and SVHN are downloaded through torchvision. CelebA is first attempted
-through torchvision's official Google Drive downloader; if Google Drive is
-quota-limited, the script falls back to a public mirror that has the same files
-and directory layout expected by torchvision.datasets.CelebA.
-"""
-
 from __future__ import annotations
 
 import hashlib

@@ -1,10 +1,3 @@
-"""
-Dedicated CelebA training entry point.
-
-This keeps the CelebA-specific trainer changes out of the shared train.py /
-trainer_v.py path used by the rest of the group.
-"""
-
 import argparse
 import torch
 

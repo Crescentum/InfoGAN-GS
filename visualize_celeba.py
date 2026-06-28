@@ -1,30 +1,3 @@
-"""
-visualize.py — Reproduce all figures needed for the IEEE report.
-
-Figure 2 (4 subplots, exact match to paper):
-  (a) Varying c1 on InfoGAN  — each column = one digit category
-  (b) Varying c1 on GAN      — no clear structure (needs GAN baseline ckpt)
-  (c) Varying c2 on InfoGAN  — rotation sweep -2 to 2
-  (d) Varying c3 on InfoGAN  — width sweep -2 to 2
-
-Figure 1:
-  L_I convergence curve: InfoGAN (blue) vs GAN baseline (green)
-
-Other utilities:
-  compute_classification_error  — Section 7.2, target ~5%
-  plot_loss_curves              — training diagnostics
-  plot_mode_comparison          — vanilla vs wgan_gp vs infonce
-
-Usage:
-    # Generate Figure 2 (a)(c)(d) from InfoGAN checkpoint only:
-    python visualize.py --ckpt checkpoints/mnist_vanilla_final.pt --dataset mnist
-
-    # Generate full Figure 2 including (b) GAN baseline:
-    python visualize.py --ckpt checkpoints/mnist_vanilla_final.pt \
-                        --ckpt_gan checkpoints/mnist_gan_baseline_final.pt \
-                        --dataset mnist
-"""
-
 import os
 import math
 import importlib
